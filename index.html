@@ -17,6 +17,7 @@
 }
 html,body{height:100%}
 body{margin:0}
+[hidden]{display:none!important}
 body{background:var(--bg);color:var(--fg);font-family:var(--mono);font-size:20px;line-height:1.3;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
   padding-block:12px;box-sizing:border-box}
@@ -61,17 +62,44 @@ canvas{display:block;width:100%;aspect-ratio:16/8;max-height:56vh;border:2px sol
 .tally dt{color:var(--muted)} .tally dd{margin:0;text-align:right}
 @media (max-width:520px){.results{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){h1{text-shadow:none}}
+.intro{display:flex;flex-direction:column;gap:12px}
+#introCanvas{aspect-ratio:16/9;max-height:54vh}
+.caption{font-size:24px;min-height:3.4em;margin:0;max-width:62ch}
+.day{display:grid;grid-template-columns:auto 1fr;gap:8px 18px;align-items:center;background:var(--panel);border:2px solid var(--line);padding:14px;margin-top:14px}
+.clock{font-family:var(--display);font-size:30px;color:var(--yellow);font-variant-numeric:tabular-nums}
+.sunbar{height:12px;background:linear-gradient(90deg,#4aa3ff,#ffd23f 60%,#ff3ea5);position:relative}
+.sunbar i{position:absolute;top:0;right:0;bottom:0;background:var(--bg);opacity:.85}
+.stages{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;grid-column:1/-1}
+.stage{border:1px solid var(--line);padding:8px 10px;font-size:19px}
+.stage b{font-family:var(--display);font-weight:400;font-size:15px;display:block}
+.stage.done{border-color:var(--lime);color:var(--lime)}
+.song .for{font-size:17px;color:var(--fg)}
+.song[disabled]{opacity:.45;cursor:not-allowed}
+.verdict{font-size:24px;margin:12px 0 0}
+.ending{background:var(--panel);border:2px solid var(--line);padding:28px 20px;display:flex;flex-direction:column;gap:12px}
+.ending h2{font-family:var(--display);font-weight:400;font-size:clamp(30px,7vw,54px);margin:0;color:var(--yellow);text-wrap:balance}
 </style>
 </head>
 <body>
 
 <div class="app">
-  <section id="menu">
+  <section id="intro" class="intro" hidden>
+    <canvas id="introCanvas" width="960" height="540"></canvas>
+    <p class="caption" id="caption" aria-live="polite"></p>
+    <div class="row"><button class="btn primary" id="introNext">Next</button><button class="btn" id="introSkip">Skip</button></div>
+  </section>
+
+  <section id="menu" hidden>
     <header>
       <h1>NEON TEMPO</h1>
-      <p class="tag">Drum the beat in a world where 1987 and 1996 got mixed up.</p>
-      <span class="tbd">Working title — game name and drummer character still to be picked by Manaki, Mati &amp; Kian</span>
+      <p class="tag">You're trapped inside the machine. Beat the 3 stages before sunset to get back out.</p>
+      <span class="tbd">Working title — player character still to be picked by Manaki, Mati &amp; Kian</span>
     </header>
+    <div class="day">
+      <span class="clock" id="clock">10:00 am</span>
+      <div style="min-width:0"><div class="sunbar"><i id="sunMask"></i></div><span class="tag" id="sunLeft" style="font-size:19px"></span></div>
+      <div class="stages" id="stages"></div>
+    </div>
     <div class="levels" role="group" aria-label="Level">
       <span class="tag" style="margin:0">Level:</span>
       <button class="lvl" id="lvl-beginner" data-level="beginner" aria-pressed="true">Beginner</button>
@@ -83,7 +111,9 @@ canvas{display:block;width:100%;aspect-ratio:16/8;max-height:56vh;border:2px sol
       <span>Keys: <kbd>D</kbd> kick · <kbd>F</kbd> snare · <kbd>J</kbd> hi-hat · <kbd>K</kbd> crash</span>
       <span>Or tap the drum pads</span>
       <span>Hit when the note reaches the ring</span>
+      <span>Each track you play costs 1.5 hours</span>
     </div>
+    <div class="row" style="margin-top:10px"><button class="btn" id="replayIntro">Watch the story again</button></div>
   </section>
 
   <section id="game" hidden>
@@ -91,6 +121,7 @@ canvas{display:block;width:100%;aspect-ratio:16/8;max-height:56vh;border:2px sol
       <div class="stat"><span class="lbl" id="songName">Track</span><span class="val" id="score">0</span></div>
       <div class="stat"><span class="lbl">Combo</span><span class="val" id="combo">0</span></div>
       <div class="stat"><span class="lbl">Multiplier</span><span class="val" id="mult">x1</span></div>
+      <div class="stat"><span class="lbl">Time</span><span class="val" id="hudTime">10:00 am</span></div>
       <button class="btn" id="quit">Quit</button>
     </div>
     <canvas id="stage" width="960" height="480"></canvas>
@@ -109,11 +140,20 @@ canvas{display:block;width:100%;aspect-ratio:16/8;max-height:56vh;border:2px sol
           <dt>Miss</dt><dd id="rMiss">0</dd>
           <dt>Best combo</dt><dd id="rCombo">0</dd>
         </dl>
+        <p class="verdict" id="verdict"></p>
         <div class="row" style="margin-top:14px">
-          <button class="btn primary" id="again">Play again</button>
-          <button class="btn" id="back">Pick another track</button>
+          <button class="btn primary" id="again">Try again</button>
+          <button class="btn" id="back">Back to the arcade</button>
         </div>
       </div>
+    </div>
+  </section>
+
+  <section id="ending" hidden>
+    <div class="ending">
+      <h2 id="endTitle"></h2>
+      <p class="tag" id="endText" style="max-width:60ch"></p>
+      <div class="row"><button class="btn primary" id="endBtn">Play a new day</button></div>
     </div>
   </section>
 </div>
@@ -133,6 +173,15 @@ const CONFIG = {
   inputOffset: 0.0,      // raise a little (e.g. 0.03) if hits feel late on your computer
   keys: ['d','f','j','k'],
   volume: 0.8,
+  // The story: you plug in the machine at 10 am and must beat 3 stages before sunset.
+  day: {
+    startHour: 10, sunsetHour: 20.5, hoursPerSong: 1.5,
+    stages: [
+      { name:'Stage 1', goal:'Any 80s track', era:'80s', target:0.50 },
+      { name:'Stage 2', goal:'A 90s track',   era:'90s', target:0.60 },
+      { name:'Final Machine', goal:'Neon Tempo', song:'final', target:0.65 },
+    ],
+  },
 };
 
 const LANES = [
@@ -144,30 +193,36 @@ const LANES = [
 
 /* Original songs, composed in code. chords: [bass root MIDI, [chord tones MIDI]] — one per bar, looping. */
 const SONGS = [
-  { id:'rock', title:'Cassette Highway', genre:'80s arena rock', color:'#ff3ea5', bpm:128, swing:0, bars:27,
+  { id:'rock', title:'Cassette Highway', genre:'80s arena rock', era:'80s', color:'#ff3ea5', bpm:128, swing:0, bars:27,
     chords:[[45,[57,61,64]],[41,[57,60,65]],[48,[55,60,64]],[43,[55,59,62]]],
     bass:{ steps:[0,2,4,6,8,10,12,14], wave:'sawtooth', cutoff:700, walk:false },
     stab:{ steps:[0,3,6,10,12], wave:'sawtooth', cutoff:1800, len:0.18, gain:0.07 },
     arp:null,
     drums:{ kick:[0,8,10], snare:[4,12], hat:[0,2,4,6,8,10,12,14], fill:[12,13,14,15] } },
-  { id:'pop', title:'Mall Laser Pop', genre:'synth-pop', color:'#22e4ff', bpm:112, swing:0, bars:27,
+  { id:'pop', title:'Mall Laser Pop', genre:'80s synth-pop', era:'80s', color:'#22e4ff', bpm:112, swing:0, bars:27,
     chords:[[38,[57,62,65]],[46,[58,62,65]],[41,[57,60,65]],[48,[55,60,64]]],
     bass:{ steps:[0,2,4,6,8,10,12,14], wave:'square', cutoff:600, walk:false, octaves:true },
     stab:{ steps:[0], wave:'sawtooth', cutoff:1400, len:1.9, gain:0.045 },
     arp:{ steps:[0,2,4,6,8,10,12,14], wave:'square', gain:0.035 },
     drums:{ kick:[0,4,8,12], snare:[4,12], hat:[2,6,10,14], fill:[12,14,15] } },
-  { id:'jazz', title:'Dial-Up Jazz Café', genre:'90s acid jazz', color:'#ffd23f', bpm:100, swing:0.33, bars:27,
+  { id:'jazz', title:'Dial-Up Jazz Café', genre:'90s acid jazz', era:'90s', color:'#ffd23f', bpm:100, swing:0.33, bars:27,
     chords:[[38,[60,65,69]],[43,[59,65,67]],[36,[59,64,67]],[45,[61,64,67]]],
     bass:{ steps:[0,4,8,12], wave:'triangle', cutoff:900, walk:true },
     stab:{ steps:[0,6,12], wave:'triangle', cutoff:2200, len:0.35, gain:0.08 },
     arp:null,
     drums:{ kick:[0,10], snare:[4,12], hat:[0,4,6,8,12,14], fill:[12,14] } },
-  { id:'zombie', title:'Zombie Videoclub', genre:'80s spooky funk', color:'#b46bff', bpm:116, swing:0, bars:27,
+  { id:'zombie', title:'Zombie Videoclub', genre:'80s spooky funk', era:'80s', color:'#b46bff', bpm:116, swing:0, bars:27,
     chords:[[40,[55,59,64]],[40,[55,59,64]],[36,[55,60,64]],[47,[54,59,63]]],
     bass:{ steps:[0,3,6,8,10,14], wave:'sawtooth', cutoff:520, walk:false, octaves:true },
     stab:{ steps:[4,12], wave:'square', cutoff:1600, len:0.12, gain:0.06 },
     arp:{ steps:[0,3,6,10], wave:'triangle', gain:0.05 },
     drums:{ kick:[0,6,8], snare:[4,12], hat:[0,2,4,6,8,10,12,14], fill:[12,13,14,15] } },
+  { id:'final', title:'Neon Tempo', genre:'80s × 90s · final machine', era:'final', color:'#f4ecff', bpm:124, swing:0, bars:31,
+    chords:[[40,[55,59,64]],[36,[55,60,64]],[43,[55,59,62]],[38,[57,62,66]]],
+    bass:{ steps:[0,2,3,6,8,10,11,14], wave:'sawtooth', cutoff:650, walk:false, octaves:true },
+    stab:{ steps:[0,6,12], wave:'sawtooth', cutoff:1900, len:0.2, gain:0.06 },
+    arp:{ steps:[0,2,4,6,8,10,12,14], wave:'square', gain:0.035 },
+    drums:{ kick:[0,6,8,10], snare:[4,12], hat:[0,2,4,6,8,10,12,14], fill:[12,13,14,15] } },
 ];
 let DIFF = CONFIG.levels.beginner;
 const INTRO_BARS = 2;
@@ -251,16 +306,55 @@ function buildBacking(song){
 /* ===================== GAME STATE ===================== */
 const $=id=>document.getElementById(id);
 const canvas=$('stage'), g2=canvas.getContext('2d');
-let state='menu', baseSong, song, chart, lanesNotes, ptr, backing, evIdx, songStart, endTime;
+let stageIdx=-1, state='menu', baseSong, song, chart, lanesNotes, ptr, backing, evIdx, songStart, endTime;
 let score, combo, maxCombo, tally, popups, flashes;
 const confetti = Array.from({length:22},(_,i)=>({x:Math.random(),y:Math.random()*0.42,r:6+Math.random()*10,k:i%4,rot:Math.random()*6,v:0.004+Math.random()*0.01,c:LANES[i%4].color}));
 
-function show(id){ ['menu','game','results'].forEach(s=>$(s).hidden = s!==id); }
+function show(id){ ['intro','menu','game','results','ending'].forEach(s=>$(s).hidden = s!==id); }
+
+/* ===================== THE DAY (story clock + stages) ===================== */
+let day;
+function newDay(){ day={ hour:CONFIG.day.startHour, cleared:CONFIG.day.stages.map(()=>false) }; }
+newDay();
+function fmtTime(h){ let hh=Math.floor(h), mm=Math.round((h-hh)*60); if(mm===60){hh++;mm=0;} const ap=hh>=12?'pm':'am'; return `${((hh+11)%12)+1}:${String(mm).padStart(2,'0')} ${ap}`; }
+function dayFrac(){ const d=CONFIG.day; return Math.min(1,Math.max(0,(day.hour-d.startHour)/(d.sunsetHour-d.startHour))); }
+function mix(a,b,f){ const p=s=>[1,3,5].map(i=>parseInt(s.slice(i,i+2),16)); const A=p(a),B=p(b); return `rgb(${A.map((v,i)=>Math.round(v+(B[i]-v)*f)).join(',')})`; }
+function stageFor(s){
+  const st=CONFIG.day.stages;
+  for (let i=0;i<st.length;i++){ if (day.cleared[i]) continue; if (st[i].song ? st[i].song===s.id : st[i].era===s.era) return i; }
+  return -1;
+}
+function finalUnlocked(){ return day.cleared.slice(0,-1).every(Boolean); }
+function renderDay(){
+  $('clock').textContent=fmtTime(day.hour);
+  const left=CONFIG.day.sunsetHour-day.hour;
+  $('sunLeft').textContent = `${Math.floor(left)}h ${Math.round((left%1)*60)}m until sunset`;
+  $('sunMask').style.width = (100*(1-dayFrac()))+'%';
+  $('stages').innerHTML = CONFIG.day.stages.map((s,i)=>`<div class="stage${day.cleared[i]?' done':''}"><b>${day.cleared[i]?'✓ ':''}${s.name}</b>${s.goal} · hit ${Math.round(s.target*100)}%</div>`).join('');
+  $('songs').innerHTML='';
+  SONGS.forEach(s=>{
+    const locked = s.id==='final' && !finalUnlocked(), si=stageFor(s);
+    const b=document.createElement('button'); b.className='song'; b.id='song-'+s.id; b.style.setProperty('--c',s.color); b.disabled=locked;
+    b.innerHTML=`<span class="genre">${s.genre}</span><span class="name">${s.title}</span><span class="meta">${s.bpm} BPM · about ${Math.round(stepTime(s,s.bars,0))} sec</span><span class="for">${locked?'Locked: clear Stage 1 and 2 first':si>=0?'Counts for '+CONFIG.day.stages[si].name:'Practice only'}</span>`;
+    b.addEventListener('click',()=>start(s)); $('songs').appendChild(b);
+  });
+}
+function toArcade(){ state='menu'; renderDay(); show('menu'); }
+function ending(escaped){
+  state='ending';
+  $('endTitle').textContent = escaped ? 'You got out!' : 'The sun went down…';
+  $('endText').textContent = escaped
+    ? `You beat the machine at ${fmtTime(day.hour)}. You're back in the last arcade on Earth, in Nelson. Nobody noticed you were gone. Behind you, the machine with the "Do not touch" sign is still humming.`
+    : `Sunset. The screen flickers and you're still inside. You're part of Neon Tempo now… until the machine resets at 10:00 am tomorrow.`;
+  $('endBtn').textContent = escaped ? 'Play a new day' : 'Try again tomorrow';
+  show('ending');
+}
 function multiplier(){ return Math.min(CONFIG.maxMultiplier, 1+Math.floor(combo/CONFIG.comboPerMultiplier)); }
 function hud(){ $('score').textContent=score.toLocaleString(); $('combo').textContent=combo; $('mult').textContent='x'+multiplier(); }
 
 function start(s){
   initAudio(); ctx.resume();
+  stageIdx=stageFor(s); $('hudTime').textContent=fmtTime(day.hour);
   baseSong=s; song={...s, bpm:s.bpm*DIFF.tempo}; chart=buildChart(song); backing=buildBacking(song); evIdx=0;
   lanesNotes=LANES.map((_,l)=>chart.filter(n=>n.lane===l)); ptr=[0,0,0,0];
   score=0; combo=0; maxCombo=0; tally={perfect:0,good:0,miss:0}; popups=[]; flashes=[0,0,0,0];
@@ -276,6 +370,15 @@ function finish(){
   $('resSong').textContent = `${song.title} · ${DIFF.label} · ${Math.round(acc*100)}% accuracy`;
   $('rScore').textContent=score.toLocaleString(); $('rPerfect').textContent=tally.perfect; $('rGood').textContent=tally.good;
   $('rMiss').textContent=tally.miss; $('rCombo').textContent=maxCombo;
+  const st=CONFIG.day.stages[stageIdx]; let verdict;
+  if (!st) verdict='Practice round: this track doesn\'t count for a stage you still need.';
+  else if (acc>=st.target){ day.cleared[stageIdx]=true; verdict=`${st.name} cleared!`; }
+  else verdict=`Not yet: ${st.name} needs ${Math.round(st.target*100)}%. You got ${Math.round(acc*100)}%.`;
+  day.hour = Math.min(CONFIG.day.sunsetHour, day.hour + CONFIG.day.hoursPerSong);
+  const over = day.cleared.every(Boolean) || day.hour>=CONFIG.day.sunsetHour;
+  $('verdict').textContent = `${verdict} It's now ${fmtTime(day.hour)}.`;
+  $('again').hidden = over;
+  $('back').textContent = over ? 'Continue' : 'Back to the arcade';
   show('results');
 }
 function judge(n,result){
@@ -334,7 +437,8 @@ function drawBackground(now){
   const beat = 60/song.bpm, phase = ((now%beat)+beat)%beat/beat;
   const horizon = H*0.42;
   let sky=g2.createLinearGradient(0,0,0,horizon);
-  sky.addColorStop(0,'#120626'); sky.addColorStop(0.6,'#3a0b5c'); sky.addColorStop(1,'#ff3ea5');
+  const f=dayFrac(); // sky goes from morning blue to sunset pink as the day runs out
+  sky.addColorStop(0,mix('#1e4fa8','#120626',f)); sky.addColorStop(0.6,mix('#4aa3ff','#3a0b5c',f)); sky.addColorStop(1,mix('#bfe3ff','#ff3ea5',f));
   g2.fillStyle=sky; g2.fillRect(0,0,W,horizon);
   // 80s striped sun
   const sx=W*0.72, sr=H*0.24;
@@ -405,11 +509,6 @@ function draw(now){
 }
 
 /* ===================== UI WIRING ===================== */
-SONGS.forEach(s=>{
-  const b=document.createElement('button'); b.className='song'; b.id='song-'+s.id; b.style.setProperty('--c',s.color);
-  b.innerHTML=`<span class="genre">${s.genre}</span><span class="name">${s.title}</span><span class="meta">${s.bpm} BPM · about ${Math.round(stepTime(s,s.bars,0))} sec</span>`;
-  b.addEventListener('click',()=>start(s)); $('songs').appendChild(b);
-});
 LANES.forEach((L,l)=>{
   const b=document.createElement('button'); b.className='pad'; b.id='pad-'+l; b.style.setProperty('--c',L.color);
   b.innerHTML=`${L.name}<small>${L.key}</small>`;
@@ -420,15 +519,74 @@ addEventListener('keydown',e=>{
   if (e.repeat) return;
   const l=CONFIG.keys.indexOf(e.key.toLowerCase());
   if (l>=0 && state==='play'){ e.preventDefault(); hit(l); const p=$('pad-'+l); p.classList.add('on'); setTimeout(()=>p.classList.remove('on'),90); }
-  if (e.key==='Escape' && state==='play'){ state='menu'; show('menu'); }
+  if (e.key==='Escape' && state==='play') toArcade();
 });
-$('quit').addEventListener('click',()=>{ state='menu'; show('menu'); });
+$('quit').addEventListener('click',toArcade);
 $('again').addEventListener('click',()=>start(baseSong));
 document.querySelectorAll('.lvl').forEach(b=>b.addEventListener('click',()=>{
   DIFF = CONFIG.levels[b.dataset.level];
   document.querySelectorAll('.lvl').forEach(x=>x.setAttribute('aria-pressed', x===b ? 'true' : 'false'));
 }));
-$('back').addEventListener('click',()=>{ state='menu'; show('menu'); });
+$('back').addEventListener('click',()=>{
+  if (day.cleared.every(Boolean)) ending(true);
+  else if (day.hour>=CONFIG.day.sunsetHour) ending(false);
+  else toArcade();
+});
+$('endBtn').addEventListener('click',()=>{ newDay(); toArcade(); });
+
+/* ===================== STORY INTRO ===================== */
+const ic=$('introCanvas'), ix=ic.getContext('2d'); let IW=960, IH=540, introIdx=0, introRaf;
+function sizeIntro(){ const r=ic.getBoundingClientRect(), dpr=window.devicePixelRatio||1; IW=Math.max(300,r.width); IH=Math.max(170,r.height); ic.width=Math.round(IW*dpr); ic.height=Math.round(IH*dpr); ix.setTransform(dpr,0,0,dpr,0,0); }
+function txt(s,x,y,size,color,font='Audiowide, sans-serif',align='center'){ ix.font=`${size}px ${font}`; ix.fillStyle=color; ix.textAlign=align; ix.textBaseline='middle'; ix.fillText(s,x,y); }
+function sceneStreet(t){ const W=IW,H=IH; const g=ix.createLinearGradient(0,0,0,H); g.addColorStop(0,'#4aa3ff'); g.addColorStop(1,'#cfe9ff'); ix.fillStyle=g; ix.fillRect(0,0,W,H);
+  ix.fillStyle='#8a8f99'; ix.fillRect(0,H*0.82,W,H*0.18);
+  ix.fillStyle='#2a1747'; ix.fillRect(W*0.2,H*0.22,W*0.6,H*0.6);
+  ix.globalAlpha = Math.sin(t*9)>-0.7 ? 1 : 0.35; ix.shadowColor='#ff3ea5'; ix.shadowBlur=18; txt('LAST ARCADE ON EARTH',W/2,H*0.31,Math.min(W*0.04,34),'#ff3ea5'); ix.shadowBlur=0; ix.globalAlpha=1;
+  for (let i=0;i<4;i++){ ix.fillStyle=LANES[i].color; ix.globalAlpha=0.5+0.3*Math.sin(t*3+i); ix.fillRect(W*(0.24+i*0.14),H*0.42,W*0.1,H*0.15); } ix.globalAlpha=1;
+  ix.fillStyle='#120626'; ix.fillRect(W*0.45,H*0.62,W*0.1,H*0.2);
+  txt('NELSON · AOTEAROA NEW ZEALAND',W/2,H*0.91,Math.min(W*0.03,24),'#120626','VT323, monospace');
+  txt('10:00 AM',W-16,30,Math.min(W*0.04,30),'#120626','Audiowide, sans-serif','right'); }
+function sceneRoom(t){ const W=IW,H=IH; ix.fillStyle='#1d0b3a'; ix.fillRect(0,0,W,H); ix.fillStyle='#2a1747'; ix.fillRect(0,H*0.75,W,H*0.25);
+  for (let i=0;i<5;i++){ const x=W*(0.04+i*0.14); ix.fillStyle='#3b1f6b'; ix.fillRect(x,H*0.3,W*0.1,H*0.45);
+    ix.fillStyle=LANES[i%4].color; ix.globalAlpha=0.6+0.4*Math.sin(t*4+i); ix.fillRect(x+W*0.015,H*0.35,W*0.07,H*0.12); ix.globalAlpha=1;
+    ix.fillStyle='#0a0316'; ix.beginPath(); ix.arc(x+W*0.05,H*0.57,H*0.055,0,Math.PI*2); ix.fill(); ix.fillRect(x+W*0.02,H*0.62,W*0.06,H*0.2); }
+  const dx=W*0.8; ix.fillStyle='#0a0316'; ix.fillRect(dx,H*0.2,W*0.13,H*0.55);
+  ix.fillStyle=`rgba(255,210,63,${0.35+0.2*Math.sin(t*1.5)})`; ix.beginPath(); ix.moveTo(dx,H*0.2); ix.lineTo(dx+W*0.035,H*0.2); ix.lineTo(dx+W*0.09,H*0.99); ix.lineTo(dx-W*0.05,H*0.99); ix.closePath(); ix.fill();
+  ix.fillStyle='#ffd23f'; ix.fillRect(dx,H*0.2,W*0.035,H*0.55);
+  ix.fillStyle='#4a2a80'; ix.fillRect(dx+W*0.035,H*0.2,W*0.095,H*0.55); }
+function sceneMachine(t){ const W=IW,H=IH; ix.fillStyle='#0a0316'; ix.fillRect(0,0,W,H);
+  const g=ix.createRadialGradient(W/2,H*0.05,10,W/2,H*0.5,H*0.9); g.addColorStop(0,'rgba(255,210,63,0.28)'); g.addColorStop(1,'rgba(0,0,0,0)'); ix.fillStyle=g; ix.fillRect(0,0,W,H);
+  const cx=W/2, cw=Math.min(W*0.2,H*0.36), top=H*0.14;
+  ix.fillStyle='#3b1f6b'; ix.fillRect(cx-cw/2,top,cw,H*0.7); ix.fillStyle='#ff3ea5'; ix.fillRect(cx-cw/2,top,cw,H*0.05);
+  ix.fillStyle='#120626'; ix.fillRect(cx-cw*0.38,top+H*0.09,cw*0.76,H*0.2);
+  ix.save(); ix.translate(cx,top+H*0.4); ix.rotate(-0.08); ix.fillStyle='#ffd23f'; ix.fillRect(-cw*0.48,-H*0.045,cw*0.96,H*0.09); txt('DO NOT TOUCH',0,0,Math.min(cw*0.12,22),'#120626'); ix.restore();
+  ix.strokeStyle='#a993d1'; ix.lineWidth=4; ix.beginPath(); ix.moveTo(cx+cw/2,H*0.8); ix.quadraticCurveTo(cx+cw,H*0.97,cx+cw*1.5,H*0.9); ix.stroke();
+  ix.fillStyle='#a993d1'; ix.fillRect(cx+cw*1.5,H*0.875,W*0.03,H*0.05);
+  ix.fillStyle='#f4ecff'; ix.fillRect(W*0.86,H*0.78,W*0.04,H*0.08); ix.fillStyle='#0a0316'; ix.fillRect(W*0.872,H*0.8,W*0.005,H*0.03); ix.fillRect(W*0.884,H*0.8,W*0.005,H*0.03); }
+function sceneGlitch(t){ const W=IW,H=IH; ix.fillStyle='#000'; ix.fillRect(0,0,W,H);
+  for (let i=0;i<40;i++){ ix.fillStyle=LANES[(Math.random()*4)|0].color; ix.globalAlpha=Math.random()*0.8; ix.fillRect(0,Math.random()*H,W,Math.random()*H*0.04); } ix.globalAlpha=1;
+  const j=(Math.random()-0.5)*10; txt('◄◄ REWIND',W/2+j,H*0.42,Math.min(W*0.06,48),'#f4ecff'); txt('2000s → 1996 → 1987',W/2-j,H*0.58,Math.min(W*0.04,32),'#ffd23f','VT323, monospace'); }
+function sceneWorld(t){ const W=IW,H=IH, hz=H*0.55; const g=ix.createLinearGradient(0,0,0,hz); g.addColorStop(0,'#1e4fa8'); g.addColorStop(0.6,'#4aa3ff'); g.addColorStop(1,'#ff9ad0'); ix.fillStyle=g; ix.fillRect(0,0,W,hz);
+  ix.fillStyle='#ffd23f'; ix.beginPath(); ix.arc(W*0.87,hz*0.3,H*0.08,0,Math.PI*2); ix.fill();
+  ix.fillStyle='#120626'; ix.fillRect(0,hz,W,H-hz); ix.strokeStyle='rgba(34,228,255,0.5)'; ix.lineWidth=1;
+  const ph=(t*0.6)%1; for (let i=0;i<10;i++){ const p=(i+ph)/10, y=hz+(H-hz)*p*p; ix.beginPath(); ix.moveTo(0,y); ix.lineTo(W,y); ix.stroke(); }
+  for (let i=-10;i<=10;i++){ ix.beginPath(); ix.moveTo(W/2+i*W*0.02,hz); ix.lineTo(W/2+i*W*0.18,H); ix.stroke(); }
+  txt('NEON TEMPO',W/2,H*0.25,Math.min(W*0.08,64),'#f4ecff'); txt('10:00 AM · SUNSET AT 8:30 PM',W/2,H*0.38,Math.min(W*0.035,26),'#120626','VT323, monospace'); }
+const INTRO = [
+  { draw:sceneStreet,  text:'10:00 am. Nelson, New Zealand. The last arcade on Earth opens its doors.' },
+  { draw:sceneRoom,    text:'The main room is full of people playing. But at the back, a door is slightly open…' },
+  { draw:sceneMachine, text:'Inside there\'s only one machine. A sign on it says DO NOT TOUCH. Its power cable is unplugged.' },
+  { draw:sceneGlitch,  text:'You plug it in.' },
+  { draw:sceneWorld,   text:'You\'re inside the game, in a world where the 80s and 90s got mixed up. Nobody knows you\'re here. Beat the 3 stages before sunset, or stay here forever.' },
+];
+function setIntro(){ $('caption').textContent=INTRO[introIdx].text; $('introNext').textContent = introIdx===INTRO.length-1 ? 'Start the day' : 'Next'; }
+function introLoop(){ if (state!=='intro') return; INTRO[introIdx].draw(performance.now()/1000); introRaf=requestAnimationFrame(introLoop); }
+function showIntro(){ state='intro'; introIdx=0; show('intro'); sizeIntro(); setIntro(); cancelAnimationFrame(introRaf); introLoop(); }
+$('introNext').addEventListener('click',()=>{ if (introIdx<INTRO.length-1){ introIdx++; setIntro(); } else toArcade(); });
+$('introSkip').addEventListener('click',toArcade);
+$('replayIntro').addEventListener('click',showIntro);
+addEventListener('resize',()=>{ if (state==='intro') sizeIntro(); });
+showIntro();
 </script>
 </body>
 </html>
